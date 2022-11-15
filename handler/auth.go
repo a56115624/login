@@ -11,7 +11,7 @@ import (
 	customError "login/pkg/customEorr"
 	"login/pkg/customEorr/repository"
 	"strconv"
-	"strings"
+	_ "strings"
 )
 
 const LoggedUserIdStoredKey = "logged_user_id"
@@ -31,6 +31,10 @@ func (h *AuthHandler) Register(app *pac.App) {
 	// 登出
 	r.Post("/logout", h.checkAuthn(), h.handleLogout)
 	r.Get("/check", h.checkAuthn(), h.handleCheck)
+	h.userRepo = pac.Must[repository.CustomerRepoInterface](
+		//
+		pac.Repo[repository.CustomerRepoInterface](app, "customer"),
+		"service/manager: cannot start due to no valid manager repo found")
 }
 
 // handleLogin 處理使用者登入的流程
@@ -47,28 +51,27 @@ func (h *AuthHandler) handleLogin(c *fiber.Ctx) error {
 		return customError.New(c, 400, "cannot parse request")
 	}
 	user := form.Username
-	passwod := form.Password
-	if len(user) >= 6 {
-		return customError.New(c, 402, "使用者名字最多只能５個字")
+	// passwod := form.Password
+	password, err := h.userRepo.GetProfileByUsername(user)
+	if err != nil {
+		fmt.Println(err)
+		return c.SendString(err.Error())
 	}
-	if strings.Title(user) != user {
-		return customError.New(c, 402, "第一個字請大寫")
+	if password != form.Password {
+		return c.SendString("密碼錯誤")
 	}
-	if strings.Contains(passwod, "*") != true || len(passwod) < 8 {
-		return customError.New(c, 407, "密碼請包含*並大於8")
-	}
-
-	// if len(passwod) < 8 {
-	// 	return customError.New(c, 403, "密碼最少要8位數")
+	// if len(user) >= 6 {
+	// 	return customError.New(c, 402, "使用者名字最多只能５個字")
+	// }
+	// if strings.Title(user) != user {
+	// 	return customError.New(c, 402, "第一個字請大寫")
+	// }
+	// if strings.Contains(passwod, "*") != true || len(passwod) < 8 {
+	// 	return customError.New(c, 407, "密碼請包含*並大於8")
 	// }
 
 	return c.SendString("成功登入")
-	// return c.JSON(form)
-	// return c.Status(200).JSON(fiber.Map{
-	// 	"status":  200,
-	// 	"message": "successfully logged",
-	// 	"error":   false,
-	// })
+
 }
 
 // handleLogout 處理使用者登出的情形

@@ -3,8 +3,10 @@ package main
 import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 
-	"github.com/teampui/pac/bundb"
 	"log"
+
+	"github.com/teampui/pac/bundb"
+
 	// 放在所有人前面，這樣就可以在一開始就讀取環境變數
 	"github.com/joho/godotenv"
 	// _ "github.com/joho/godotenv/autoload"
@@ -14,8 +16,9 @@ import (
 	"github.com/teampui/pac/redis"
 
 	// 載入服務
-	session_handler "login/handler"
 
+	"login/handler"
+	"login/pkg/customEorr/repository"
 	// "github.com/teampui/comico-api/cmd/api/session-handler"
 	// pkgHandler "github.com/teampui/comico-api/pkg/handler"
 	// "github.com/teampui/comico-api/pkg/repository"
@@ -51,9 +54,11 @@ func main() {
 		AllowCredentials: true,
 		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
 	}))
+
+	app.Add(&repository.CustomerInMemoryRepo{})
 	// API 路由
 	// session handler
-	app.Add(&session_handler.AuthHandler{})
+	app.Add(&handler.AuthHandler{})
 
 	// 開始工作
 	app.Start()
