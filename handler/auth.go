@@ -10,7 +10,6 @@ import (
 	"login/modle"
 	customError "login/pkg/customEorr"
 	"login/pkg/customEorr/repository"
-	"strconv"
 	_ "strings"
 )
 
@@ -19,8 +18,7 @@ const LoggedUserTcStoredKey = "logged_user_tc"
 const LoggedUserTtStoredKey = "logged_user_tt"
 
 type AuthHandler struct {
-	userRepo  repository.CustomerRepoInterface
-	redisRepo repository.RedisRepoInterface
+	userRepo repository.CustomerRepoInterface
 }
 
 // type colors struct {
@@ -33,11 +31,8 @@ func (h *AuthHandler) Register(app *pac.App) {
 	r.Post("/login", h.handleLogin)
 	// 帳號登入
 	r.Post("/register", h.handleRegister)
-	// 登出
-	r.Post("/logout", h.checkAuthn(), h.handleLogout)
-	r.Get("/check", h.checkAuthn(), h.handleCheck)
 	h.userRepo = pac.Must[repository.CustomerRepoInterface](
-		pac.Repo[repository.CustomerRepoInterface](app, "customer"),
+		pac.Repo[repository.CustomerRepoInterface](app, "customerdata"),
 		"service/manager: cannot start due to no valid manager repo found")
 
 }
@@ -90,36 +85,6 @@ func (h *AuthHandler) handleLogin(c *fiber.Ctx) error {
 	return c.SendString("成功登入")
 }
 
-// handleLogout 處理使用者登出的情形
-func (h *AuthHandler) handleLogout(c *fiber.Ctx) error {
-	// tt := c.Query("tt", "")
-	// tc := getTcBySession(c)
-
-	// 先取得目前的登入使用者
-	loggedUser, err := h.getLogged(c)
-	if err != nil {
-		return customError.New(c, 500, "cannot get current logged user")
-	}
-	// 從 Redis 裡移除指定的登入記錄
-	err = h.removeSpecificConcurrent(loggedUser, h.getSessionID(c))
-	if err != nil {
-		return customError.New(c, 500, "cannot get current logged user")
-	}
-
-	// 把目前的 session 給取消掉
-	err = h.destroyConnectionSession(c)
-	if err != nil {
-		return customError.New(c, 500, "cannot update session for logout")
-	}
-
-	// 回傳給使用者
-	return c.SendString("我在這!")
-	// return c.Status(200).JSON(fiber.Map{
-	// 	"status":  200,
-	// 	"message": "successfully logout",
-	// 	"error":   false,
-	// })
-}
 func (h *AuthHandler) handleCheck(c *fiber.Ctx) error {
 	// 取得目前登入的資訊, 如果已經登入則回傳 403
 	if h.isLogged(c) {
@@ -131,32 +96,6 @@ func (h *AuthHandler) handleCheck(c *fiber.Ctx) error {
 		"message": "not logged",
 		"error":   false,
 	})
-}
-
-// checkAuthn 會檢查使用者是否有登入，如果沒登入的話回傳 401
-func (h *AuthHandler) checkAuthn(opts ...any) func(c *fiber.Ctx) error {
-	return func(c *fiber.Ctx) error {
-		if !h.isLogged(c) {
-			return customError.New(c, 401, "not logged")
-		}
-
-		user, err := h.getLogged(c)
-
-		if err != nil {
-			return customError.New(c, 500, "cannot get logged user info")
-		}
-		// 如果目前這個使用者名下的線上可登入使用者沒有這個 session
-		if !h.checkSpecificConcurrent(user, h.getSessionID(c)) {
-			//
-			err = h.destroyConnectionSession(c)
-			if err != nil {
-				return customError.New(c, 500, "cannot loggout")
-			}
-
-			return customError.New(c, 401, "not logged")
-		}
-		return c.Next()
-	}
 }
 
 // checkLogged 會快速進入 session 檢查是否有指定的值
@@ -175,15 +114,6 @@ func (h *AuthHandler) getLogged(c *fiber.Ctx) (int64, error) {
 	}
 
 	return userID, nil
-}
-func (h *AuthHandler) checkSpecificConcurrent(loggedUserId int64, sessionId string) bool {
-	members := h.redisRepo.GetSortedSetAllMembers(strconv.FormatInt(loggedUserId, 10))
-	for _, member := range members {
-		if member == sessionId {
-			return true
-		}
-	}
-	return false
 }
 
 // getSessionID 取得目前 Session 的 Id (唯一識別符)
@@ -214,8 +144,4 @@ func getTcBySession(c *fiber.Ctx) int64 {
 	}
 
 	return referrer
-}
-
-func (h *AuthHandler) removeSpecificConcurrent(loggedUserId int64, sessionId string) error {
-	return h.redisRepo.RemoveSortedSetMember(strconv.FormatInt(loggedUserId, 10), sessionId)
 }
