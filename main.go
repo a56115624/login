@@ -56,6 +56,7 @@ func main() {
 	}))
 
 	app.Add(&repository.CustomerInMemoryRepo{})
+
 	// API 路由
 	// session handler
 	app.Add(&handler.AuthHandler{})

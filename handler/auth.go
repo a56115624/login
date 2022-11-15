@@ -23,23 +23,28 @@ type AuthHandler struct {
 	redisRepo repository.RedisRepoInterface
 }
 
+// type colors struct {
+// 	user password
+// }
+
 func (h *AuthHandler) Register(app *pac.App) {
 	r := app.Router().Group("/api/v1/auth")
 	// 帳號登入
 	r.Post("/login", h.handleLogin)
-
+	// 帳號登入
+	r.Post("/register", h.handleRegister)
 	// 登出
 	r.Post("/logout", h.checkAuthn(), h.handleLogout)
 	r.Get("/check", h.checkAuthn(), h.handleCheck)
 	h.userRepo = pac.Must[repository.CustomerRepoInterface](
-		//
 		pac.Repo[repository.CustomerRepoInterface](app, "customer"),
 		"service/manager: cannot start due to no valid manager repo found")
+
 }
 
 // handleLogin 處理使用者登入的流程
-func (h *AuthHandler) handleLogin(c *fiber.Ctx) error {
-	fmt.Println("我在這裡你看看")
+func (h *AuthHandler) handleRegister(c *fiber.Ctx) error {
+
 	// 取得目前登入的資訊, 如果已經登入則回傳 403
 	if h.isLogged(c) {
 		return customError.New(c, 403, "already logged")
@@ -51,27 +56,38 @@ func (h *AuthHandler) handleLogin(c *fiber.Ctx) error {
 		return customError.New(c, 400, "cannot parse request")
 	}
 	user := form.Username
-	// passwod := form.Password
+	password := form.Password
+	check, err := h.userRepo.Createdaccountdate(user, password)
+	if err != nil {
+		return c.SendString(err.Error())
+	}
+	fmt.Println("註冊成功", check)
+
+	return c.SendString("成功註冊")
+
+}
+func (h *AuthHandler) handleLogin(c *fiber.Ctx) error {
+
+	// 取得目前登入的資訊, 如果已經登入則回傳 403
+	if h.isLogged(c) {
+		return customError.New(c, 403, "already logged")
+	}
+
+	// 開始收集登入資訊
+	form := new(model.AuthUserLoginForm)
+	if err := c.BodyParser(form); err != nil {
+		return customError.New(c, 400, "cannot parse request")
+	}
+	user := form.Username
+	password := form.Password
 	password, err := h.userRepo.GetProfileByUsername(user)
 	if err != nil {
-		fmt.Println(err)
 		return c.SendString(err.Error())
 	}
 	if password != form.Password {
 		return c.SendString("密碼錯誤")
 	}
-	// if len(user) >= 6 {
-	// 	return customError.New(c, 402, "使用者名字最多只能５個字")
-	// }
-	// if strings.Title(user) != user {
-	// 	return customError.New(c, 402, "第一個字請大寫")
-	// }
-	// if strings.Contains(passwod, "*") != true || len(passwod) < 8 {
-	// 	return customError.New(c, 407, "密碼請包含*並大於8")
-	// }
-
 	return c.SendString("成功登入")
-
 }
 
 // handleLogout 處理使用者登出的情形
